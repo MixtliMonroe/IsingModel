@@ -2,6 +2,10 @@ import numpy as np
 
 class IsingModel:
     def __init__(self, size, temperature, interaction_strength, external_field):
+        '''
+        Initialises the class by saving size, temperature, interaction_strength, external_field as class attributes
+        And initialises a size by size matrix of random +1s and -1s to represent the lattice of spins
+        '''
         self.size = size
         if temperature == 0:
             self.T = 1e-6
@@ -9,6 +13,7 @@ class IsingModel:
             self.T = temperature
         self.J = interaction_strength
         self.h = external_field
+        # Initialise the lattice of spins
         self.lattice = np.random.choice([1,-1], size=(size, size))
 
     def _site_spin_interaction(self, site: tuple) -> float:
@@ -17,11 +22,10 @@ class IsingModel:
         site_interaction = sum_{<i,j>}(S_i * S_j)
         <i,j> is a sum over nearest neighbours, but I will only be considering contributions from the spin directly right and directly below to avoid unnecessary sums when this function is used elsewhere.
         Note that this asserts periodic boundary conditions
-        inputs:
-            - lattice: the whole lattice of spins
+        Inputs:
             - site: the index of the centre of the site
-        outputs:
-            - float: local interaction term of the site
+        Outputs:
+            - site_interaction: a float determining the local interaction term of the site
         '''
         # Get the spin state of the spin at the centre of the site
         spin = self.lattice[*site]
@@ -31,7 +35,13 @@ class IsingModel:
         return site_interaction
 
     def _site_metropolis_step(self, site: tuple) -> None:
-
+        '''
+        For a given site, this function decides whether the spin should be flipped or not based on the energy difference between the flipped and un-flipped site using the Metropolis algorithm.
+        Inputs:
+            - site: The site to decide to flip
+        Outputs:
+            - None: however self.lattice is amended based on the spin at the site being flipped or not 
+        '''
         # Calculate the relevant energy terms involving the given site
         E_same = self.J*(self._site_spin_interaction(site) + self._site_spin_interaction((site[0]-1, site[1])) + self._site_spin_interaction((site[0], site[1]-1))) + self.h*self.lattice[*site]
 
@@ -50,6 +60,9 @@ class IsingModel:
             self.lattice[*site] = -1*self.lattice[*site]
             
     def step(self):
+        '''
+        Picks a random site and applies a step of the Metropolis algorithm to it
+        '''
         # Randomly choose a site
         i,j = np.random.randint(0, self.size, size=2)
 
@@ -61,6 +74,8 @@ class IsingModel:
         Calculates the total energy of the system using the Ising model hamiltonian:
         H = J*sum_{<i,j>} S_i * S_j  + h*sum_{i} S_i
         _site_spin_interaction is designed so that the sum over neighbours sum_{<i,j>} is simply a sum over all sites.
+        Output:
+            - energy: a float determining the total energy of the system
         '''
         # Sum over all spin interactions and all spins for each term in the hamiltonian
         total_interaction = 0
