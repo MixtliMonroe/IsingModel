@@ -1,4 +1,7 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.animation import FuncAnimation
 
 class IsingModel:
     def __init__(self, size, temperature, interaction_strength, external_field):
@@ -43,21 +46,22 @@ class IsingModel:
             - None: however self.lattice is amended based on the spin at the site being flipped or not 
         '''
         # Calculate the relevant energy terms involving the given site
-        E_same = self.J*(self._site_spin_interaction(site) + self._site_spin_interaction((site[0]-1, site[1])) + self._site_spin_interaction((site[0], site[1]-1))) + self.h*self.lattice[*site]
+        E_same = -self.J*(self._site_spin_interaction(site) + self._site_spin_interaction((site[0]-1, site[1])) + self._site_spin_interaction((site[0], site[1]-1))) - self.h*self.lattice[*site]
 
         # Flip the given site
         self.lattice[*site] = -1*self.lattice[*site]
 
         # Calculate the relevant energy terms involving the given flipped site
-        E_flipped = self.J*(self._site_spin_interaction(site) + self._site_spin_interaction((site[0]-1, site[1])) + self._site_spin_interaction((site[0], site[1]-1))) + self.h*self.lattice[*site]
+        E_flipped = -self.J*(self._site_spin_interaction(site) + self._site_spin_interaction((site[0]-1, site[1])) + self._site_spin_interaction((site[0], site[1]-1))) - self.h*self.lattice[*site]
 
         # Calculate the energy change
         dE = E_flipped - E_same
 
         # If it is not energetically preferable, do not flip the spin
         # However, with probability exp(-dE/(k_B*T)), flip the spin anyway
-        if dE > 0 or np.random.rand() > np.exp(-dE/self.T): # Taking k_B = 1
+        if (dE > 0) and (np.random.rand() > np.exp(-dE/self.T)):
             self.lattice[*site] = -1*self.lattice[*site]
+                
             
     def step(self):
         '''
@@ -86,15 +90,48 @@ class IsingModel:
                 site_spins += self.lattice[i,j]
 
         # Evaluate the total energy using the total spin interactions and total spins
-        energy = self.J*total_interaction + self.h*total_spins
+        energy = -self.J*total_interaction - self.h*total_spins
         return energy
 
 
+
+def animate_ising_model(model):
+    '''
+    Animates the Ising model as a grid of coloured tiles with blue representing spin 1 and red spin -1.
+    Each frame runs model.size Metropolis steps.
+    Matplotlib isn't very good at rendering this very quickly for large number of tiles, so it's essentially bounded to a 50x50 grid for reasonably fast rendering.
+    '''
+    fig, ax = plt.subplots()
+    ax.set_xlim(0, model.size)
+    ax.set_ylim(0, model.size)
+
+    tiles = np.empty((model.size, model.size), dtype=object)
+    for i in range(len(tiles)):
+        for j in range(len(tiles[0])):
+            tiles[i,j] = patches.Rectangle((j,model.size-1-i), 1, 1, edgecolor="none", facecolor=("red" if Model.lattice[i,j] == -1 else "blue"))
+            ax.add_patch(tiles[i,j])
+    
+    def update(frame):
+        for _ in range(model.size):
+            Model.step()
+        
+        for i in range(len(tiles)):
+            for j in range(len(tiles[0])):
+                tiles[i,j].set_facecolor(("red" if Model.lattice[i,j] == -1 else "blue"))
+        
+        return tiles.flatten()
+    
+    FuncAnimation(fig, update, frames=1000, interval=1, blit=True)
+    plt.show()
+
 if __name__ == "__main__":
-    SIZE = 100
+    SIZE = 50
     INTERACTION_STRENGTH = J = 1
-    TEMPERATURE = T = 0
+    TEMPERATURE = T = 2.5
     EXTERNAL_FIELD = H = 0
 
+    # Generate model
     Model = IsingModel(SIZE, T, J, H)
-    Model.step()
+    
+    # Animate model
+    animate_ising_model(Model)
