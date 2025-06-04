@@ -23,8 +23,8 @@ class IsingModel:
         '''
         Finds the spin interaction of a given site of spins with given coordinate in the lattice of spins using:
         site_interaction = sum_{<i,j>}(S_i * S_j)
-        <i,j> is a sum over nearest neighbours, but I will only be considering contributions from the spin directly right and directly below to avoid unnecessary sums when this function is used elsewhere.
-        Note that this asserts periodic boundary conditions
+        <i,j> is a sum over nearest neighbours, considering contributions from the spin directly right, left, below, and above.
+        Note that this asserts periodic boundary conditions.
         Inputs:
             - site: the index of the centre of the site
         Outputs:
@@ -34,7 +34,7 @@ class IsingModel:
         spin = self.lattice[*site]
 
         # Compare spin alignment with neighbouring spins
-        site_interaction = spin*self.lattice[(site[0]+1)%len(self.lattice), site[1]] + spin*self.lattice[site[0], (site[1]+1)%len(self.lattice[0])]
+        site_interaction = spin*(self.lattice[(site[0] + 1)%self.size, site[1]] + self.lattice[site[0], (site[1] + 1)%self.size] + self.lattice[(site[0] - 1)%self.size, site[1]] + self.lattice[site[0], (site[1] - 1)%self.size])
         return site_interaction
 
     def _site_metropolis_step(self, site: tuple) -> None:
@@ -45,24 +45,17 @@ class IsingModel:
         Outputs:
             - None: however self.lattice is amended based on the spin at the site being flipped or not 
         '''
-        # Calculate the relevant energy terms involving the given site
-        E_same = -self.J*(self._site_spin_interaction(site) + self._site_spin_interaction((site[0]-1, site[1])) + self._site_spin_interaction((site[0], site[1]-1))) - self.h*self.lattice[*site]
+        # Calculate the energy change if the spin was flipped
+        # The change in energy is only due to the four interaction terms of neighbouring spins, and the external field term
+        dE = 2*(self.J*self._site_spin_interaction(site) + self.h*self.lattice[*site])
 
-        # Flip the given site
-        self.lattice[*site] = -1*self.lattice[*site]
-
-        # Calculate the relevant energy terms involving the given flipped site
-        E_flipped = -self.J*(self._site_spin_interaction(site) + self._site_spin_interaction((site[0]-1, site[1])) + self._site_spin_interaction((site[0], site[1]-1))) - self.h*self.lattice[*site]
-
-        # Calculate the energy change
-        dE = E_flipped - E_same
-
-        # If it is not energetically preferable, do not flip the spin
-        # However, with probability exp(-dE/(k_B*T)), flip the spin anyway
-        if (dE > 0) and (np.random.rand() > np.exp(-dE/self.T)):
+        # If it is energetically preferable (dE < 0), flip the spin
+        # However, even if dE > 0, with probability exp(-dE/(k_B*T)), flip the spin anyway
+        if dE < 0 :
             self.lattice[*site] = -1*self.lattice[*site]
-                
-            
+        elif np.random.rand() < np.exp(-dE/self.T):
+            self.lattice[*site] = -1*self.lattice[*site]
+
     def step(self):
         '''
         Picks a random site and applies a step of the Metropolis algorithm to it
@@ -90,7 +83,8 @@ class IsingModel:
                 site_spins += self.lattice[i,j]
 
         # Evaluate the total energy using the total spin interactions and total spins
-        energy = -self.J*total_interaction - self.h*total_spins
+        # Factor of half to account for double counting spin interactions
+        energy = -self.J*total_interaction/2 - self.h*total_spins
         return energy
 
 
@@ -112,7 +106,7 @@ def animate_ising_model(model):
             ax.add_patch(tiles[i,j])
     
     def update(frame):
-        for _ in range(model.size):
+        for _ in range(model.size**3):
             Model.step()
         
         for i in range(len(tiles)):
@@ -121,7 +115,7 @@ def animate_ising_model(model):
         
         return tiles.flatten()
     
-    FuncAnimation(fig, update, frames=1000, interval=1, blit=True)
+    ani = FuncAnimation(fig, update, frames=1000, interval=1, blit=True)
     plt.show()
 
 if __name__ == "__main__":
